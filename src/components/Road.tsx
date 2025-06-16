@@ -38,13 +38,6 @@ const LaneContainer = styled.div`
   margin: 0;
 `;
 
-const LaneLine = styled.div`
-  width: 2px;
-  height: 100%;
-  background-color: white;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-`;
-
 const Car = styled.div<{ position: number; turnDirection: 'left' | 'right' | 'none' }>`
   position: absolute;
   width: 40px;
