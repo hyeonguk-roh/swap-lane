@@ -1,3 +1,28 @@
+# Swapline
+
+A fun driving game where you navigate through traffic while avoiding collisions.
+
+## Features
+- 7-lane highway gameplay
+- Multiple types of enemy cars
+- Responsive design
+- Touch and keyboard controls
+
+## Play Now
+Visit [https://hyeonguk-roh.github.io/swapline/](https://hyeonguk-roh.github.io/swapline/) to play the game!
+
+## Development
+```bash
+npm install
+npm run dev
+```
+
+## Technologies Used
+- React
+- TypeScript
+- Vite
+- Emotion (for styling)
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
