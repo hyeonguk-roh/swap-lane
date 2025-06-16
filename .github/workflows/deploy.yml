@@ -30,11 +30,18 @@ jobs:
         run: npm run build
 
       - name: List build output
-        run: ls -la dist/
+        run: |
+          echo "Contents of dist directory:"
+          ls -la dist/
+          echo "Contents of dist/assets directory:"
+          ls -la dist/assets/
 
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: dist
           branch: gh-pages
-          clean: true 
+          clean: true
+          clean-exclude: |
+            .git
+            .nojekyll 
