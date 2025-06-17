@@ -24,14 +24,15 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npm list
 
       - name: Build
-        run: npm run build
-
-      - name: List build output
         run: |
-          echo "Contents of dist directory:"
+          echo "Starting build..."
+          npm run build || (echo "Build failed. Contents of dist directory:" && ls -la dist/ && exit 1)
+          echo "Build completed. Contents of dist directory:"
           ls -la dist/
           echo "Contents of dist/assets directory:"
           ls -la dist/assets/
