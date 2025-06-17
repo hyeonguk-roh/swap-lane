@@ -37,6 +37,11 @@ jobs:
           echo "Contents of dist/assets directory:"
           ls -la dist/assets/
 
+      - name: Add .nojekyll and MIME type configuration
+        run: |
+          touch dist/.nojekyll
+          echo "/*.js application/javascript" > dist/_headers
+
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
         with:
@@ -45,4 +50,5 @@ jobs:
           clean: true
           clean-exclude: |
             .git
-            .nojekyll 
+            .nojekyll
+            _headers 
