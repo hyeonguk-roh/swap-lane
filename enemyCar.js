@@ -46,21 +46,127 @@ class EnemyCar {
     this.turnSignalTimer = null;
     this.turnSignalBlinkState = false;
     this.turnSignalBlinkInterval = 500; // ms
+
+    // Add collision avoidance properties
+    this.safeDistance = OBSTACLE_HEIGHT * 2; // Minimum safe distance between cars
+    this.emergencySwerve = false;
+    this.emergencySwerveDirection = null;
+    this.emergencySwerveTimer = null;
+    this.playerAvoidanceDistance = OBSTACLE_HEIGHT * 3; // Distance at which to start avoiding player
   }
 
-  startLaneChange(direction) {
-    if (this.isChangingLanes) return;
+  // Add new method to check for nearby cars
+  checkNearbyCars(enemyCars, targetLane, playerCar) {
+    const safeZone = {
+      left: this.x - this.safeDistance,
+      right: this.x + this.safeDistance,
+      top: this.y - this.safeDistance,
+      bottom: this.y + this.safeDistance
+    };
+
+    // Check player car first
+    if (playerCar) {
+      const playerLane = Math.floor((playerCar.x - ROAD_LEFT) / LANE_WIDTH);
+      if (playerLane === targetLane) {
+        if (playerCar.x > safeZone.left && playerCar.x < safeZone.right &&
+            playerCar.y > safeZone.top && playerCar.y < safeZone.bottom) {
+          return true; // Player car is too close
+        }
+      }
+    }
+
+    // Then check other enemy cars
+    for (let car of enemyCars) {
+      if (car === this) continue; // Skip self
+
+      // Check if car is in target lane
+      const carLane = Math.floor((car.x - ROAD_LEFT) / LANE_WIDTH);
+      if (carLane !== targetLane) continue;
+
+      // Check if car is within safe distance
+      if (car.x > safeZone.left && car.x < safeZone.right &&
+          car.y > safeZone.top && car.y < safeZone.bottom) {
+        return true; // Car is too close
+      }
+    }
+    return false; // No cars too close
+  }
+
+  // Add emergency swerve method
+  startEmergencySwerve(direction) {
+    if (this.emergencySwerve) return;
+    
+    this.emergencySwerve = true;
+    this.emergencySwerveDirection = direction;
+    
+    // Cancel any ongoing lane change
+    if (this.isChangingLanes) {
+      this.isChangingLanes = false;
+      clearTimeout(this.turnSignalTimer);
+      clearInterval(this.turnSignalBlinkInterval);
+      this.turnSignal = null;
+    }
+    
+    // Set timer to end emergency swerve
+    this.emergencySwerveTimer = setTimeout(() => {
+      this.emergencySwerve = false;
+      this.emergencySwerveDirection = null;
+    }, 1000);
+  }
+
+  // Add new method to check for player proximity
+  checkPlayerProximity(playerCar) {
+    if (!playerCar) return false;
+    
+    const dx = playerCar.x - this.x;
+    const dy = playerCar.y - this.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    return distance < this.playerAvoidanceDistance;
+  }
+
+  // Add new method to determine best avoidance direction
+  getAvoidanceDirection(playerCar) {
+    if (!playerCar) return null;
+    
+    const dx = playerCar.x - this.x;
+    // If player is to the left, swerve right and vice versa
+    return dx < 0 ? 'right' : 'left';
+  }
+
+  startLaneChange(direction, enemyCars, playerCar) {
+    if (this.isChangingLanes || this.emergencySwerve) return;
+    
+    // Check if player is nearby before attempting lane change
+    if (this.checkPlayerProximity(playerCar)) {
+      const avoidanceDirection = this.getAvoidanceDirection(playerCar);
+      if (avoidanceDirection) {
+        this.startEmergencySwerve(avoidanceDirection);
+      }
+      return;
+    }
     
     // Determine target lane
+    let targetLane;
     if (direction === 'left' && this.lane > 0) {
-      this.targetLane = this.lane - 1;
-      this.turnSignal = 'left';
+      targetLane = this.lane - 1;
     } else if (direction === 'right' && this.lane < LANE_COUNT - 1) {
-      this.targetLane = this.lane + 1;
-      this.turnSignal = 'right';
+      targetLane = this.lane + 1;
     } else {
       return; // Can't change lanes in that direction
     }
+
+    // Check if there are any cars in the target lane (including player car)
+    if (this.checkNearbyCars(enemyCars, targetLane, playerCar)) {
+      // If there's a car in the target lane, try to swerve in the opposite direction
+      const oppositeDirection = direction === 'left' ? 'right' : 'left';
+      this.startEmergencySwerve(oppositeDirection);
+      return;
+    }
+
+    // If safe to change lanes, proceed with normal lane change
+    this.targetLane = targetLane;
+    this.turnSignal = direction;
 
     // Start turn signal
     this.turnSignalBlinkState = true;
@@ -73,7 +179,7 @@ class EnemyCar {
       this.isChangingLanes = true;
       clearInterval(this.turnSignalBlinkInterval);
       this.turnSignal = null;
-    }, 1000 + Math.random() * 2000); // Random delay between 1-3 seconds
+    }, 1000 + Math.random() * 2000);
   }
 
   applyCollision(impactX, impactY, force) {
@@ -106,7 +212,6 @@ class EnemyCar {
       
       // Stop physics when velocities are very small
       if (Math.abs(this.velocityX) < 0.1 && Math.abs(this.velocityY) < 0.1 && Math.abs(this.angularVelocity) < 0.01) {
-        this.isColliding = false;
         this.velocityX = 0;
         this.velocityY = 0;
         this.angularVelocity = 0;
@@ -115,8 +220,14 @@ class EnemyCar {
       // Move in the same direction as the player (up the screen)
       this.y -= this.speed;
 
-      // Handle lane changing with steering mechanics
-      if (this.isChangingLanes) {
+      // Handle emergency swerving
+      if (this.emergencySwerve) {
+        const swerveAmount = this.emergencySwerveDirection === 'left' ? -0.3 : 0.3;
+        this.steering = swerveAmount;
+        this.x += this.speed * swerveAmount;
+      }
+      // Handle normal lane changing
+      else if (this.isChangingLanes) {
         const targetX = ROAD_LEFT + (this.targetLane + 0.5) * LANE_WIDTH;
         const dx = targetX - this.x;
         
@@ -209,6 +320,111 @@ class EnemyCar {
   }
 }
 
+// Drunk driver variant
+class DrunkDriver extends EnemyCar {
+  constructor(canvas, lane, speed) {
+    super(canvas, lane, speed);
+    this.swerveTimer = null;
+    this.currentSwerveDirection = null;
+    this.swerveIntensity = 0.4; // How much the car swerves
+    this.swerveChangeInterval = 500; // How often the swerve direction changes
+    
+    // Override the car image with drunk driver sprite
+    this.carImage = new Image();
+    this.carImage.src = 'assets/drunk_driver.png';
+    this.carImage.onload = () => {
+      this.imageLoaded = true;
+      // Calculate display dimensions to maintain aspect ratio
+      const aspectRatio = this.carImage.width / this.carImage.height;
+      this.displayHeight = OBSTACLE_HEIGHT * 1.5;  // 1.5x taller to match player car
+      this.displayWidth = this.displayHeight * aspectRatio;
+    };
+    this.imageLoaded = false;
+    
+    this.startDrunkDriving();
+  }
+
+  startDrunkDriving() {
+    // Start random swerving
+    this.updateSwerveDirection();
+    this.swerveTimer = setInterval(() => this.updateSwerveDirection(), this.swerveChangeInterval);
+  }
+
+  updateSwerveDirection() {
+    // Randomly change swerve direction
+    this.currentSwerveDirection = Math.random() < 0.5 ? -1 : 1;
+    // Randomly adjust swerve intensity
+    this.swerveIntensity = 0.3 + Math.random() * 0.3; // Between 0.3 and 0.6
+  }
+
+  // Override checkNearbyCars to always return false (no collision avoidance)
+  checkNearbyCars(enemyCars, targetLane, playerCar) {
+    return false;
+  }
+
+  // Override startLaneChange to be more erratic
+  startLaneChange(direction, enemyCars, playerCar) {
+    if (this.isChangingLanes) return;
+    
+    // Determine target lane with more randomness
+    let targetLane;
+    if (direction === 'left' && this.lane > 0) {
+      targetLane = this.lane - 1;
+    } else if (direction === 'right' && this.lane < LANE_COUNT - 1) {
+      targetLane = this.lane + 1;
+    } else {
+      return;
+    }
+
+    // Always proceed with lane change, no safety checks
+    this.targetLane = targetLane;
+    this.turnSignal = direction;
+
+    // Start turn signal
+    this.turnSignalBlinkState = true;
+    this.turnSignalBlinkInterval = setInterval(() => {
+      this.turnSignalBlinkState = !this.turnSignalBlinkState;
+    }, 500);
+
+    // Set timer for actual lane change with random delay
+    this.turnSignalTimer = setTimeout(() => {
+      this.isChangingLanes = true;
+      clearInterval(this.turnSignalBlinkInterval);
+      this.turnSignal = null;
+    }, 500 + Math.random() * 1000); // Shorter, more random delay
+  }
+
+  update() {
+    if (this.isColliding) {
+      // Apply physics when colliding
+      this.x += this.velocityX;
+      this.y += this.velocityY;
+      this.rotation += this.angularVelocity;
+      
+      // Apply friction
+      this.velocityX *= this.friction;
+      this.velocityY *= this.friction;
+      this.angularVelocity *= this.angularFriction;
+      
+      // Stop physics when velocities are very small
+      if (Math.abs(this.velocityX) < 0.1 && Math.abs(this.velocityY) < 0.1 && Math.abs(this.angularVelocity) < 0.01) {
+        this.velocityX = 0;
+        this.velocityY = 0;
+        this.angularVelocity = 0;
+      }
+    } else {
+      // Move in the same direction as the player (up the screen)
+      this.y -= this.speed;
+
+      // Add constant swerving
+      this.steering = this.currentSwerveDirection * this.swerveIntensity;
+      
+      // Update position with steering
+      this.x += this.speed * this.steering;
+    }
+  }
+}
+
 // Enemy car manager class
 class EnemyCarManager {
   constructor(canvas) {
@@ -218,6 +434,9 @@ class EnemyCarManager {
     this.spawnInterval = 1000; // Spawn a car every second
     this.spawnRadius = 1000; // Spawn cars within 1000 pixels of player
     this.minSpawnDistance = 800; // Minimum distance from player to spawn
+    this.maxCarsInView = 10; // Maximum number of cars that should be visible at once
+    this.minCarSpacing = OBSTACLE_HEIGHT * 1.5; // Reduced spacing to allow for occasional crashes
+    this.drunkDriverChance = 0.2; // 20% chance to spawn a drunk driver
   }
 
   reset() {
@@ -226,6 +445,16 @@ class EnemyCarManager {
   }
 
   spawnCar(playerY) {
+    // Count cars that are within the spawn radius
+    const carsInView = this.enemyCars.filter(car => 
+      Math.abs(car.y - playerY) < this.spawnRadius
+    ).length;
+
+    // Don't spawn if we already have too many cars in view
+    if (carsInView >= this.maxCarsInView) {
+      return;
+    }
+
     // Randomly select a lane
     const lane = Math.floor(Math.random() * LANE_COUNT);
     
@@ -233,61 +462,79 @@ class EnemyCarManager {
     const speed = MAX_SPEED * 0.5;
     
     // Calculate spawn position within radius but outside camera view
-    const angle = Math.random() * Math.PI * 2; // Random angle
+    const angle = Math.random() * Math.PI * 2;
     const distance = this.minSpawnDistance + Math.random() * (this.spawnRadius - this.minSpawnDistance);
-    const spawnY = playerY - distance; // Spawn behind the player
+    const spawnY = playerY - distance;
+
+    // Check if there's enough space for the new car
+    const hasSpace = this.enemyCars.every(car => 
+      Math.abs(car.y - spawnY) > this.minCarSpacing || 
+      Math.abs(car.x - (ROAD_LEFT + (lane + 0.5) * LANE_WIDTH)) > LANE_WIDTH
+    );
+
+    if (!hasSpace) {
+      return;
+    }
     
-    // Create new enemy car
-    const car = new EnemyCar(this.canvas, lane, speed);
-    car.y = spawnY; // Set the initial Y position
+    // Randomly decide whether to spawn a drunk driver
+    const car = Math.random() < this.drunkDriverChance ? 
+      new DrunkDriver(this.canvas, lane, speed) : 
+      new EnemyCar(this.canvas, lane, speed);
+    
+    car.y = spawnY;
     this.enemyCars.push(car);
 
-    // Randomly decide if this car will change lanes
-    if (Math.random() < 0.3) { // 30% chance to change lanes
+    // Only try to change lanes if it's not a drunk driver
+    if (!(car instanceof DrunkDriver) && Math.random() < 0.5) {
       const direction = Math.random() < 0.5 ? 'left' : 'right';
-      car.startLaneChange(direction);
+      car.startLaneChange(direction, this.enemyCars, this.playerCar);
     }
   }
 
-  update(cameraY, roadLeft, roadWidth, laneCount, laneWidth) {
-    const currentTime = Date.now();
-    
-    // Spawn new cars at random intervals
-    if (currentTime - this.lastSpawnTime > this.spawnInterval) {
-      this.spawnCar(cameraY);
-      this.lastSpawnTime = currentTime;
-      // Randomize next spawn interval between 0.5 and 2 seconds
-      this.spawnInterval = 500 + Math.random() * 1500;
-    }
-
-    // Update and check collisions between cars
-    for (let i = 0; i < this.enemyCars.length; i++) {
-      const car1 = this.enemyCars[i];
-      car1.update();
+  update(cameraY, roadLeft, roadWidth, laneCount, laneWidth, playerCar) {
+    // Update each car
+    for (let i = this.enemyCars.length - 1; i >= 0; i--) {
+      const car = this.enemyCars[i];
+      
+      // Remove cars that are off screen
+      if (car.isOffScreen(cameraY)) {
+        this.enemyCars.splice(i, 1);
+        continue;
+      }
+      
+      // Check wall collisions
+      const carWidth = car.displayWidth;
+      if (car.x - carWidth/2 < roadLeft || car.x + carWidth/2 > roadLeft + roadWidth) {
+        // Calculate impact direction (always from the wall)
+        const impactX = car.x < roadLeft + roadWidth/2 ? 1 : -1;
+        const impactY = 0;
+        const force = 2; // Wall collision force
+        car.applyCollision(impactX, impactY, force);
+      }
 
       // Check collisions with other cars
       for (let j = i + 1; j < this.enemyCars.length; j++) {
-        const car2 = this.enemyCars[j];
+        const otherCar = this.enemyCars[j];
         
         // Get the actual dimensions of both cars
-        const car1Width = car1.displayWidth;
-        const car1Height = car1.displayHeight;
-        const car2Width = car2.displayWidth;
-        const car2Height = car2.displayHeight;
+        const car1Width = car.displayWidth;
+        const car1Height = car.displayHeight;
+        const car2Width = otherCar.displayWidth;
+        const car2Height = otherCar.displayHeight;
         
         // Calculate hitboxes (centered on car positions)
         const box1 = {
-          left: car1.x - car1Width / 2,
-          right: car1.x + car1Width / 2,
-          top: car1.y - car1Height / 2,
-          bottom: car1.y + car1Height / 2
+          left: car.x - car1Width / 2,
+          right: car.x + car1Width / 2,
+          top: car.y - car1Height / 2,
+          bottom: car.y + car1Height / 2
         };
         
         const box2 = {
-          left: car2.x - car2Width / 2,
-          right: car2.x + car2Width / 2,
-          top: car2.y - car2Height / 2,
-          bottom: car2.y + car2Height / 2
+          left: otherCar.x - car2Width / 2,
+          right: otherCar.x + car2Width / 2,
+          top: otherCar.y - car2Height / 2,
+          bottom: otherCar.y + car2Height / 2
         };
         
         // Check for intersection
@@ -297,7 +544,7 @@ class EnemyCarManager {
             box1.bottom > box2.top) {
           
           // Calculate collision force based on relative speeds
-          const force = Math.max(1, Math.abs(car1.speed - car2.speed));
+          const force = Math.max(1, Math.abs(car.speed - otherCar.speed));
           
           // Calculate impact direction based on which sides collided
           let impactX = 0;
@@ -328,14 +575,27 @@ class EnemyCarManager {
           impactY /= length;
           
           // Apply collision physics to both cars
-          car1.applyCollision(impactX, impactY, force);
-          car2.applyCollision(-impactX, -impactY, force);
+          car.applyCollision(impactX, impactY, force);
+          otherCar.applyCollision(-impactX, -impactY, force);
         }
       }
+      
+      // Update car
+      car.update();
+      
+      // Randomly try to change lanes if not already changing lanes and not colliding
+      if (!car.isChangingLanes && !car.emergencySwerve && !car.isColliding && Math.random() < 0.005) {
+        const direction = Math.random() < 0.5 ? 'left' : 'right';
+        car.startLaneChange(direction, this.enemyCars, playerCar);
+      }
     }
-
-    // Remove off-screen cars
-    this.enemyCars = this.enemyCars.filter(car => !car.isOffScreen(cameraY));
+    
+    // Spawn new cars
+    const now = Date.now();
+    if (now - this.lastSpawnTime > this.spawnInterval) {
+      this.spawnCar(cameraY);
+      this.lastSpawnTime = now;
+    }
   }
 
   draw(cameraY, cameraX) {

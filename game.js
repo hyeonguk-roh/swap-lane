@@ -16,9 +16,10 @@ const AI_CAR_SPAWN_DISTANCE = 1000; // Distance ahead to spawn AI cars
 const AI_CAR_SPAWN_INTERVAL = 2000; // Time between AI car spawns in ms
 
 // Steering wheel constants
-const MAX_WHEEL_ROTATION = 540; // degrees, 1.5 full turns
-const MAX_TIRE_ANGLE = 90; // degrees, tire can turn 90 deg at max wheel rotation
+const MAX_WHEEL_ROTATION = 720; // Changed to 720 degrees (2 full turns)
+const MAX_TIRE_ANGLE = 90; // Unchanged
 const MAX_STEERING_ANGLE = MAX_WHEEL_ROTATION;
+const STEERING_SENSITIVITY = 1.2;
 
 // Game state
 let score = 0;
@@ -40,6 +41,7 @@ window.steeringActive = false;
 window.lastSteeringPointer = null;
 window.steeringStartAngle = 0;
 window.steeringStartPointerAngle = 0;
+window.lastPointerAngle = 0; // Add this to track the last angle
 
 // Steering wheel UI functions
 window.setSteeringVisual = function(angle) {
@@ -51,7 +53,10 @@ window.getAngleFromCenter = function(x, y, rect) {
   const cy = rect.top + rect.height / 2;
   const dx = x - cx;
   const dy = y - cy;
-  return Math.atan2(dy, dx) * 180 / Math.PI;
+  // Normalize angle to be between 0 and 360 degrees
+  let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  if (angle < 0) angle += 360;
+  return angle;
 };
 
 window.onSteeringStart = function(e) {
@@ -59,6 +64,7 @@ window.onSteeringStart = function(e) {
   const pointer = e.touches ? e.touches[0] : e;
   const rect = e.target.getBoundingClientRect();
   window.steeringStartPointerAngle = window.getAngleFromCenter(pointer.clientX, pointer.clientY, rect);
+  window.lastPointerAngle = window.steeringStartPointerAngle; // Initialize last angle
   window.steeringStartAngle = window.steeringAngle;
   window.lastSteeringPointer = pointer;
   e.preventDefault();
@@ -66,15 +72,30 @@ window.onSteeringStart = function(e) {
 
 window.onSteeringMove = function(e) {
   if (!window.steeringActive) return;
+  
   const pointer = e.touches ? e.touches[0] : e;
   const rect = document.getElementById('steeringWheel').getBoundingClientRect();
   const pointerAngle = window.getAngleFromCenter(pointer.clientX, pointer.clientY, rect);
-  let delta = pointerAngle - window.steeringStartPointerAngle;
+  
+  // Calculate delta with angle wrapping
+  let delta = pointerAngle - window.lastPointerAngle;
   if (delta > 180) delta -= 360;
   if (delta < -180) delta += 360;
-  delta *= 1.2;
-  window.steeringAngle = Math.max(-window.MAX_STEERING_ANGLE, Math.min(window.MAX_STEERING_ANGLE, window.steeringStartAngle + delta));
-  window.setSteeringVisual(window.steeringAngle);
+  delta *= STEERING_SENSITIVITY;
+  
+  // Calculate new angle and clamp to limits
+  const newAngle = window.steeringAngle + delta;
+  const clampedAngle = Math.max(-MAX_STEERING_ANGLE, Math.min(MAX_STEERING_ANGLE, newAngle));
+  
+  // Only update if the angle has changed
+  if (clampedAngle !== window.steeringAngle) {
+    window.steeringAngle = clampedAngle;
+    window.setSteeringVisual(window.steeringAngle);
+  }
+  
+  // Update the last angle for the next frame
+  window.lastPointerAngle = pointerAngle;
+  
   e.preventDefault();
 };
 
@@ -100,15 +121,15 @@ class Game {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     
-    // Canvas-dependent constants
-    this.ROAD_WIDTH = 480;  // Doubled from 240 to accommodate 6 lanes
+    // Road properties
+    this.ROAD_WIDTH = 700; // Increased to accommodate 7 lanes
     this.ROAD_LEFT = (canvas.width - this.ROAD_WIDTH) / 2;
-    this.LANE_COUNT = 6;  // Changed from 3 to 6
+    this.LANE_COUNT = 7; // Changed from 3 to 7
     this.LANE_WIDTH = this.ROAD_WIDTH / this.LANE_COUNT;
     
-    // Camera settings
-    this.cameraX = 0;
+    // Camera properties
     this.cameraY = 0;
+    this.cameraX = 0;
     this.cameraSmoothing = 0.1; // How quickly the camera follows (0-1)
     
     // Game state
@@ -117,6 +138,7 @@ class Game {
     this.scoreActive = true;
     this.highScore = localStorage.getItem('highScore') || 0;
     this.passedCars = new Set(); // Track which cars have been passed
+    this.roadSegments = []; // Road segments array as instance property
     
     // Make canvas-dependent constants available globally
     Object.assign(window, {
@@ -160,17 +182,25 @@ class Game {
         }
         return;
       }
-      if (e.code === 'ArrowLeft') window.steeringAngle = Math.max(window.steeringAngle - 10, -window.MAX_STEERING_ANGLE);
-      if (e.code === 'ArrowRight') window.steeringAngle = Math.min(window.steeringAngle + 10, window.MAX_STEERING_ANGLE);
-      if (e.code === 'ArrowUp' || e.key === 'w' || e.key === 'W') this.playerCar.setPedal('gas', true);
-      if (e.code === 'ArrowDown' || e.key === 's' || e.key === 'S') this.playerCar.setPedal('brake', true);
-      window.setSteeringVisual(window.steeringAngle);
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        const step = e.key === 'ArrowLeft' ? -5 : 5;
+        const newAngle = window.steeringAngle + step;
+        
+        // Only update if within limits
+        if (newAngle >= -MAX_STEERING_ANGLE && newAngle <= MAX_STEERING_ANGLE) {
+          window.steeringAngle = newAngle;
+          window.setSteeringVisual(window.steeringAngle);
+        }
+      }
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') this.playerCar.setPedal('gas', true);
+      if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') this.playerCar.setPedal('brake', true);
     });
 
     window.addEventListener('keyup', e => {
-      if (e.code === 'ArrowUp' || e.key === 'w' || e.key === 'W') this.playerCar.setPedal('gas', false);
-      if (e.code === 'ArrowDown' || e.key === 's' || e.key === 'S') this.playerCar.setPedal('brake', false);
-      if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') this.playerCar.setPedal('gas', false);
+      if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') this.playerCar.setPedal('brake', false);
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         window.steeringAngle = 0;
         window.setSteeringVisual(0);
       }
@@ -196,19 +226,19 @@ class Game {
   updateCamera() {
     // Calculate target camera position (centered on player)
     const targetX = this.playerCar.x - this.canvas.width / 2;
-    const targetY = this.playerCar.y;
+    const targetY = this.playerCar.y - this.canvas.height * 0.3;
     
     // Smoothly interpolate current camera position to target
     this.cameraX += (targetX - this.cameraX) * this.cameraSmoothing;
-    this.cameraY = targetY; // Keep vertical camera instant for better gameplay
+    this.cameraY = targetY;
   }
 
   reset() {
-    // Reset game state
     this.score = 0;
     this.gameOver = false;
     this.scoreActive = true;
     this.passedCars.clear(); // Clear the set of passed cars
+    this.roadSegments = []; // Reset road segments
     
     // Reset player car
     this.playerCar.reset();
@@ -217,11 +247,8 @@ class Game {
     this.enemyCarManager.reset();
     
     // Reset camera
-    this.cameraY = this.playerCar.y;
+    this.cameraY = this.playerCar.y - this.canvas.height * 0.3;
     this.cameraX = this.playerCar.x - this.canvas.width / 2;
-    
-    // Reset road segments
-    roadSegments = [];
     
     // Reset steering
     window.steeringAngle = 0;
@@ -230,16 +257,16 @@ class Game {
 
   generateRoadIfNeeded() {
     while (
-      roadSegments.length === 0 ||
-      roadSegments[roadSegments.length - 1].y > this.cameraY - this.canvas.height
+      this.roadSegments.length === 0 ||
+      this.roadSegments[this.roadSegments.length - 1].y > this.cameraY - this.canvas.height
     ) {
-      let y = roadSegments.length === 0 ? 
+      let y = this.roadSegments.length === 0 ? 
         Math.floor(this.cameraY / SEGMENT_LENGTH) * SEGMENT_LENGTH : 
-        roadSegments[roadSegments.length - 1].y - SEGMENT_LENGTH;
-      roadSegments.push({ y });
+        this.roadSegments[this.roadSegments.length - 1].y - SEGMENT_LENGTH;
+      this.roadSegments.push({ y });
     }
-    while (roadSegments.length > 0 && roadSegments[0].y > this.cameraY + this.canvas.height) {
-      roadSegments.shift();
+    while (this.roadSegments.length > 0 && this.roadSegments[0].y > this.cameraY + this.canvas.height) {
+      this.roadSegments.shift();
     }
   }
 
@@ -255,7 +282,7 @@ class Game {
     for (let i = 1; i < this.LANE_COUNT; i++) {
       let x = this.ROAD_LEFT + i * this.LANE_WIDTH - this.cameraX;
       this.ctx.beginPath();
-      for (let seg of roadSegments) {
+      for (let seg of this.roadSegments) {
         let y = (this.canvas.height / 2) - (this.cameraY - seg.y);
         if (y > -20 && y < this.canvas.height + 20) {
           this.ctx.moveTo(x, y);
@@ -307,7 +334,7 @@ class Game {
     this.playerCar.update(this.ROAD_LEFT, this.ROAD_WIDTH, this.LANE_COUNT, this.LANE_WIDTH);
     
     // Update enemy cars
-    this.enemyCarManager.update(this.cameraY, this.ROAD_LEFT, this.ROAD_WIDTH, this.LANE_COUNT, this.LANE_WIDTH);
+    this.enemyCarManager.update(this.cameraY, this.ROAD_LEFT, this.ROAD_WIDTH, this.LANE_COUNT, this.LANE_WIDTH, this.playerCar);
     
     // Check for collisions and count passed cars
     if (this.scoreActive) {
@@ -392,6 +419,29 @@ class Game {
           this.score += 1;
         }
       }
+    }
+
+    // Check for collisions with enemy cars
+    if (this.enemyCarManager.checkCollision(this.playerCar)) {
+      // Calculate collision force and direction
+      const force = 2;
+      const impactX = Math.random() - 0.5; // Random horizontal impact
+      const impactY = -1; // Always push the player car backward
+      
+      // Apply collision physics to player car
+      this.playerCar.applyCollision(impactX, impactY, force);
+      this.gameOver = true;
+    }
+
+    // Check for wall collisions
+    const playerWidth = this.playerCar.displayWidth;
+    if (this.playerCar.x - playerWidth/2 < this.ROAD_LEFT || this.playerCar.x + playerWidth/2 > this.ROAD_LEFT + this.ROAD_WIDTH) {
+      // Calculate impact direction (always from the wall)
+      const impactX = this.playerCar.x < this.ROAD_LEFT + this.ROAD_WIDTH/2 ? 1 : -1;
+      const impactY = 0;
+      const force = 2; // Wall collision force
+      this.playerCar.applyCollision(impactX, impactY, force);
+      this.gameOver = true;
     }
   }
 

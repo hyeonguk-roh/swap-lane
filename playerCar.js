@@ -28,7 +28,7 @@ class PlayerCar {
     this.steeringFriction = 0.95;
     this.steeringReturn = 0.1;
     this.steeringMax = 0.5;
-    this.steeringAccel = 0.02;
+    this.steeringAccel = 0.05;
     this.pedals = { gas: false, brake: false };
     
     // Physics properties
@@ -68,7 +68,6 @@ class PlayerCar {
       
       // Stop physics when velocities are very small
       if (Math.abs(this.velocityX) < 0.1 && Math.abs(this.velocityY) < 0.1 && Math.abs(this.angularVelocity) < 0.01) {
-        this.isColliding = false;
         this.velocityX = 0;
         this.velocityY = 0;
         this.angularVelocity = 0;
@@ -101,6 +100,16 @@ class PlayerCar {
       // Update position
       this.x += this.speed * this.steering;
       this.y -= this.speed;
+    }
+
+    // Check for wall collisions
+    const carWidth = this.displayWidth;
+    if (this.x - carWidth/2 < roadLeft || this.x + carWidth/2 > roadLeft + roadWidth) {
+      // Calculate impact direction (always from the wall)
+      const impactX = this.x < roadLeft + roadWidth/2 ? 1 : -1;
+      const impactY = 0;
+      const force = 2; // Wall collision force
+      this.applyCollision(impactX, impactY, force);
     }
 
     // Keep car within road bounds
