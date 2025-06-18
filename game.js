@@ -52,8 +52,9 @@ function handleTouchStart(e) {
         const pointerAngle = window.getAngleFromCenter(clientX, clientY, rect);
         activeTouches.set(identifier, {
           control: 'steering',
-          startAngle: window.steeringAngle || 0,
-          startPointerAngle: pointerAngle
+          startAngle: window.steeringAngle,
+          startPointerAngle: pointerAngle,
+          lastPointerAngle: pointerAngle
         });
         window.steeringActive = true;
       }
@@ -82,16 +83,26 @@ function handleTouchMove(e) {
     if (touchData && touchData.control === 'steering' && window.steeringActive) {
       const rect = steeringWheel.getBoundingClientRect();
       const pointerAngle = window.getAngleFromCenter(clientX, clientY, rect);
-      let delta = pointerAngle - touchData.startPointerAngle;
+      
+      // Calculate delta from last position instead of start position
+      let delta = pointerAngle - touchData.lastPointerAngle;
+      
       // Normalize delta to [-180, 180]
       if (delta > 180) delta -= 360;
       if (delta < -180) delta += 360;
-      delta *= STEERING_SENSITIVITY;
-      const newAngle = Math.max(-window.MAX_STEERING_ANGLE, Math.min(window.MAX_STEERING_ANGLE, touchData.startAngle + delta));
+      
+      // Update the angle
+      const newAngle = Math.max(-window.MAX_STEERING_ANGLE, 
+                               Math.min(window.MAX_STEERING_ANGLE, 
+                                      window.steeringAngle + (delta * STEERING_SENSITIVITY)));
+      
       if (newAngle !== window.steeringAngle) {
         window.steeringAngle = newAngle;
         window.setSteeringVisual(window.steeringAngle);
       }
+      
+      // Update last pointer angle for next frame
+      touchData.lastPointerAngle = pointerAngle;
     }
   }
 }
@@ -107,11 +118,17 @@ function handleTouchEnd(e) {
         // Only reset steering if no other steering touches are active
         if (!Array.from(activeTouches.values()).some(t => t.control === 'steering')) {
           window.steeringActive = false;
+          // Don't immediately return to center, let the player release naturally
           const returnToCenter = () => {
             if (!window.steeringActive) {
-              window.steeringAngle *= 0.9;
-              window.setSteeringVisual(window.steeringAngle);
-              if (Math.abs(window.steeringAngle) > 0.1) {
+              // Gradually return to center with easing
+              const targetAngle = 0;
+              const currentAngle = window.steeringAngle;
+              const diff = targetAngle - currentAngle;
+              
+              if (Math.abs(diff) > 0.1) {
+                window.steeringAngle += diff * 0.1; // Smooth easing
+                window.setSteeringVisual(window.steeringAngle);
                 requestAnimationFrame(returnToCenter);
               } else {
                 window.steeringAngle = 0;
@@ -185,9 +202,11 @@ window.onSteeringMove = function(e) {
   let delta = pointerAngle - window.lastPointerAngle;
   if (delta > 180) delta -= 360;
   if (delta < -180) delta += 360;
-  delta *= STEERING_SENSITIVITY;
   
-  const newAngle = Math.max(-MAX_STEERING_ANGLE, Math.min(MAX_STEERING_ANGLE, window.steeringStartAngle + delta));
+  const newAngle = Math.max(-MAX_STEERING_ANGLE, 
+                           Math.min(MAX_STEERING_ANGLE, 
+                                  window.steeringAngle + (delta * STEERING_SENSITIVITY)));
+  
   if (newAngle !== window.steeringAngle) {
     window.steeringAngle = newAngle;
     window.setSteeringVisual(window.steeringAngle);
