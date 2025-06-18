@@ -63,9 +63,41 @@
     }
     @media (max-width: 600px) {
       h1 { font-size: 1.4em; }
-      #game-container { height: 44vh; }
+      #game-container { 
+        height: 60vh;
+        margin-bottom: 12px;
+      }
       #instructions { font-size: 0.95em; }
       #steeringWheel { width: 80px; height: 80px; }
+      .game-flex {
+        flex-direction: column;
+      }
+      #steering-container {
+        margin-top: 0;
+        margin-bottom: 12px;
+      }
+      .controls-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100vw;
+        max-width: 400px;
+        margin-top: 0;
+      }
+      #steering-container {
+        margin: 0;
+        width: auto;
+      }
+      #controls {
+        margin: 0;
+        width: auto;
+        flex: 1;
+        justify-content: flex-end;
+      }
+      .pedal {
+        padding: 12px;
+        margin: 0 4px;
+      }
     }
     .game-flex {
       display: flex;
@@ -104,17 +136,19 @@
 <body>
   <h1>Swap Lane</h1>
   <div class="game-flex">
-    <div id="steering-container">
-      <img id="steeringWheel" src="assets/steering_wheel.png" style="width:180px; height:180px; touch-action:none; cursor:grab;">
-    </div>
     <div id="game-container">
       <div class="canvas-aspect">
         <canvas id="gameCanvas" width="400" height="600"></canvas>
       </div>
     </div>
-    <div id="controls">
-      <button class="pedal" id="gasBtn">Gas</button>
-      <button class="pedal" id="brakeBtn">Brake</button>
+    <div class="controls-wrapper">
+      <div id="steering-container">
+        <img id="steeringWheel" src="assets/steering_wheel.png" style="width:180px; height:180px; touch-action:none; cursor:grab;">
+      </div>
+      <div id="controls">
+        <button class="pedal" id="gasBtn">Gas</button>
+        <button class="pedal" id="brakeBtn">Brake</button>
+      </div>
     </div>
   </div>
   <div id="instructions">
