@@ -16,8 +16,8 @@ const AI_CAR_SPAWN_DISTANCE = 1000; // Distance ahead to spawn AI cars
 const AI_CAR_SPAWN_INTERVAL = 2000; // Time between AI car spawns in ms
 
 // Steering wheel constants
-const MAX_WHEEL_ROTATION = 720; // Changed to 720 degrees (2 full turns)
-const MAX_TIRE_ANGLE = 90; // Unchanged
+const MAX_WHEEL_ROTATION = 720; // degrees (one full rotation)
+const MAX_TIRE_ANGLE = 60; // degrees (tire turn angle)
 const MAX_STEERING_ANGLE = MAX_WHEEL_ROTATION;
 const STEERING_SENSITIVITY = 0.8;
 
