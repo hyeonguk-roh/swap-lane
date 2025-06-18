@@ -46,49 +46,10 @@
       position: absolute;
       top: 0; left: 0;
     }
-    #steering-container { 
-      width: 100vw; 
-      max-width: 400px; 
-      display: flex; 
-      justify-content: center; 
-      margin-top: 12px;
-      touch-action: none;
-      -webkit-touch-callout: none;
-      -webkit-user-select: none;
-      user-select: none;
-    }
-    #steeringWheel { 
-      width: 180px; 
-      height: 180px;
-      touch-action: none;
-      -webkit-touch-callout: none;
-      -webkit-user-select: none;
-      user-select: none;
-    }
-    #controls { 
-      display: flex; 
-      justify-content: space-between; 
-      width: 100vw; 
-      max-width: 400px; 
-      margin-top: 12px;
-      touch-action: none;
-    }
-    .pedal { 
-      background: #444; 
-      border: none; 
-      border-radius: 8px; 
-      color: #fff; 
-      font-size: 1.2em; 
-      padding: 12px 18px; 
-      margin: 0 8px; 
-      cursor: pointer; 
-      transition: background 0.2s; 
-      flex: 1;
-      touch-action: none;
-      -webkit-touch-callout: none;
-      -webkit-user-select: none;
-      user-select: none;
-    }
+    #steering-container { width: 100vw; max-width: 400px; display: flex; justify-content: center; margin-top: 12px; }
+    #steeringWheel { width: 180px; height: 180px; }
+    #controls { display: flex; justify-content: space-between; width: 100vw; max-width: 400px; margin-top: 12px; }
+    .pedal { background: #444; border: none; border-radius: 8px; color: #fff; font-size: 1.2em; padding: 12px 18px; margin: 0 8px; cursor: pointer; transition: background 0.2s; flex: 1; }
     .pedal:active { background: #666; }
     #instructions {
       margin-top: 16px;
@@ -170,6 +131,9 @@
         margin: 0;
       }
     }
+    #gameCanvas, #steeringWheel, #gasBtn, #brakeBtn {
+      touch-action: none;
+    }
   </style>
 </head>
 <body>
@@ -182,11 +146,11 @@
     </div>
     <div class="controls-wrapper">
       <div id="steering-container">
-        <canvas id="steeringWheel" width="180" height="180"></canvas>
+        <img id="steeringWheel" src="assets/steering_wheel.png" style="width:180px; height:180px; touch-action:none; cursor:grab;">
       </div>
       <div id="controls">
-        <button class="pedal" id="gasBtn" ontouchstart="event.preventDefault()">Gas</button>
-        <button class="pedal" id="brakeBtn" ontouchstart="event.preventDefault()">Brake</button>
+        <button class="pedal" id="gasBtn">Gas</button>
+        <button class="pedal" id="brakeBtn">Brake</button>
       </div>
     </div>
   </div>

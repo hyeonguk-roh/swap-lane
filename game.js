@@ -27,6 +27,90 @@ let gameOver = false;
 let roadSegments = [];
 const SEGMENT_LENGTH = 80;
 
+// Add touch tracking map at the top level
+const activeTouches = new Map(); // Maps touch identifier to control ('steering', 'gas', 'brake')
+
+// Helper to check if a touch is over an element
+function isTouchOverElement(x, y, element) {
+  const rect = element.getBoundingClientRect();
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+
+// Touch event handlers
+function handleTouchStart(e) {
+  e.preventDefault();
+  for (let touch of e.changedTouches) {
+    const { clientX, clientY, identifier } = touch;
+    const steeringWheel = document.getElementById('steeringWheel');
+    const gasBtn = document.getElementById('gasBtn');
+    const brakeBtn = document.getElementById('brakeBtn');
+
+    if (isTouchOverElement(clientX, clientY, steeringWheel)) {
+      window.steeringActive = true;
+      window.steeringTouchId = identifier;
+      const rect = steeringWheel.getBoundingClientRect();
+      window.steeringStartPointerAngle = window.getAngleFromCenter(clientX, clientY, rect);
+      window.steeringStartAngle = window.steeringAngle;
+      activeTouches.set(identifier, 'steering');
+    } else if (isTouchOverElement(clientX, clientY, gasBtn)) {
+      this.playerCar.setPedal('gas', true);
+      activeTouches.set(identifier, 'gas');
+    } else if (isTouchOverElement(clientX, clientY, brakeBtn)) {
+      this.playerCar.setPedal('brake', true);
+      activeTouches.set(identifier, 'brake');
+    }
+  }
+}
+
+function handleTouchMove(e) {
+  e.preventDefault();
+  for (let touch of e.changedTouches) {
+    const { clientX, clientY, identifier } = touch;
+    if (activeTouches.get(identifier) === 'steering' && window.steeringActive) {
+      const steeringWheel = document.getElementById('steeringWheel');
+      const rect = steeringWheel.getBoundingClientRect();
+      const pointerAngle = window.getAngleFromCenter(clientX, clientY, rect);
+      let delta = pointerAngle - window.steeringStartPointerAngle;
+      delta *= 1.2; // Sensitivity
+      const newAngle = Math.max(-window.MAX_STEERING_ANGLE, Math.min(window.MAX_STEERING_ANGLE, window.steeringStartAngle + delta));
+      if (newAngle !== window.steeringAngle) {
+        window.steeringAngle = newAngle;
+        window.setSteeringVisual(window.steeringAngle);
+      }
+    }
+  }
+}
+
+function handleTouchEnd(e) {
+  e.preventDefault();
+  for (let touch of e.changedTouches) {
+    const { identifier } = touch;
+    const control = activeTouches.get(identifier);
+    if (control === 'steering') {
+      window.steeringActive = false;
+      window.steeringTouchId = null;
+      const returnToCenter = () => {
+        if (!window.steeringActive) {
+          window.steeringAngle *= 0.9;
+          window.setSteeringVisual(window.steeringAngle);
+          if (Math.abs(window.steeringAngle) > 0.1) {
+            requestAnimationFrame(returnToCenter);
+          } else {
+            window.steeringAngle = 0;
+            window.setSteeringVisual(0);
+          }
+        }
+      };
+      returnToCenter();
+    } else if (control === 'gas') {
+      this.playerCar.setPedal('gas', false);
+    } else if (control === 'brake') {
+      this.playerCar.setPedal('brake', false);
+    }
+    activeTouches.delete(identifier);
+  }
+}
+
 // Make constants available globally
 Object.assign(window, {
   CAR_WIDTH, CAR_HEIGHT, OBSTACLE_WIDTH, OBSTACLE_HEIGHT,
@@ -154,27 +238,29 @@ class Game {
   }
 
   setupEventListeners() {
-    // Pedal buttons
-    document.getElementById('gasBtn').addEventListener('mousedown', () => this.playerCar.setPedal('gas', true));
-    document.getElementById('gasBtn').addEventListener('mouseup', () => this.playerCar.setPedal('gas', false));
-    document.getElementById('gasBtn').addEventListener('mouseleave', () => this.playerCar.setPedal('gas', false));
-    document.getElementById('brakeBtn').addEventListener('mousedown', () => this.playerCar.setPedal('brake', true));
-    document.getElementById('brakeBtn').addEventListener('mouseup', () => this.playerCar.setPedal('brake', false));
-    document.getElementById('brakeBtn').addEventListener('mouseleave', () => this.playerCar.setPedal('brake', false));
+    const gasBtn = document.getElementById('gasBtn');
+    const brakeBtn = document.getElementById('brakeBtn');
+    const steeringWheel = document.getElementById('steeringWheel');
 
-    // Touch support
-    ['gasBtn','brakeBtn'].forEach(id => {
-      document.getElementById(id).addEventListener('touchstart', e => { 
-        e.preventDefault(); 
-        this.playerCar.setPedal(id==='gasBtn'?'gas':'brake', true); 
-      });
-      document.getElementById(id).addEventListener('touchend', e => { 
-        e.preventDefault(); 
-        this.playerCar.setPedal(id==='gasBtn'?'gas':'brake', false); 
-      });
-    });
+    // Add touch listeners
+    steeringWheel.addEventListener('touchstart', handleTouchStart.bind(this));
+    gasBtn.addEventListener('touchstart', handleTouchStart.bind(this));
+    brakeBtn.addEventListener('touchstart', handleTouchStart.bind(this));
+    window.addEventListener('touchmove', handleTouchMove.bind(this));
+    window.addEventListener('touchend', handleTouchEnd.bind(this));
 
-    // Keyboard
+    // Keep existing mouse and keyboard listeners
+    gasBtn.addEventListener('mousedown', () => this.playerCar.setPedal('gas', true));
+    gasBtn.addEventListener('mouseup', () => this.playerCar.setPedal('gas', false));
+    gasBtn.addEventListener('mouseleave', () => this.playerCar.setPedal('gas', false));
+    brakeBtn.addEventListener('mousedown', () => this.playerCar.setPedal('brake', true));
+    brakeBtn.addEventListener('mouseup', () => this.playerCar.setPedal('brake', false));
+    brakeBtn.addEventListener('mouseleave', () => this.playerCar.setPedal('brake', false));
+    steeringWheel.addEventListener('mousedown', window.onSteeringStart);
+    window.addEventListener('mousemove', window.onSteeringMove);
+    window.addEventListener('mouseup', window.onSteeringEnd);
+
+    // Keyboard listeners remain unchanged
     window.addEventListener('keydown', e => {
       if (e.code === 'Space') {
         if (this.gameOver) {
@@ -182,45 +268,28 @@ class Game {
         }
         return;
       }
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        e.preventDefault();
-        const step = e.key === 'ArrowLeft' ? -5 : 5;
-        const newAngle = window.steeringAngle + step;
-        
-        // Only update if within limits
-        if (newAngle >= -MAX_STEERING_ANGLE && newAngle <= MAX_STEERING_ANGLE) {
-          window.steeringAngle = newAngle;
-          window.setSteeringVisual(window.steeringAngle);
-        }
-      }
-      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') this.playerCar.setPedal('gas', true);
-      if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') this.playerCar.setPedal('brake', true);
+      if (e.code === 'ArrowLeft') window.steeringAngle = Math.max(window.steeringAngle - 10, -window.MAX_STEERING_ANGLE);
+      if (e.code === 'ArrowRight') window.steeringAngle = Math.min(window.steeringAngle + 10, window.MAX_STEERING_ANGLE);
+      if (e.code === 'ArrowUp' || e.key === 'w' || e.key === 'W') this.playerCar.setPedal('gas', true);
+      if (e.code === 'ArrowDown' || e.key === 's' || e.key === 'S') this.playerCar.setPedal('brake', true);
+      window.setSteeringVisual(window.steeringAngle);
     });
 
     window.addEventListener('keyup', e => {
-      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') this.playerCar.setPedal('gas', false);
-      if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') this.playerCar.setPedal('brake', false);
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      if (e.code === 'ArrowUp' || e.key === 'w' || e.key === 'W') this.playerCar.setPedal('gas', false);
+      if (e.code === 'ArrowDown' || e.key === 's' || e.key === 'S') this.playerCar.setPedal('brake', false);
+      if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
         window.steeringAngle = 0;
         window.setSteeringVisual(0);
       }
     });
 
     // Restart on tap
-    this.canvas.addEventListener('pointerdown', () => { 
-      if (this.gameOver) { 
-        this.reset(); 
+    this.canvas.addEventListener('pointerdown', () => {
+      if (this.gameOver) {
+        this.reset();
       }
     });
-
-    // Steering wheel
-    const steeringWheel = document.getElementById('steeringWheel');
-    steeringWheel.addEventListener('mousedown', window.onSteeringStart);
-    steeringWheel.addEventListener('touchstart', window.onSteeringStart);
-    window.addEventListener('mousemove', window.onSteeringMove);
-    window.addEventListener('touchmove', window.onSteeringMove);
-    window.addEventListener('mouseup', window.onSteeringEnd);
-    window.addEventListener('touchend', window.onSteeringEnd);
   }
 
   updateCamera() {
