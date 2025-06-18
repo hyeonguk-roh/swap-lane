@@ -275,32 +275,25 @@ class Game {
     this.ctx.fillText(`High Score: ${this.highScore}`, 16, 64);
   }
 
-  drawTitleScreen() {
-    this.ctx.fillStyle = '#fff';
-    this.ctx.font = '48px Arial';
-    this.ctx.textAlign = 'center';
-    this.ctx.fillText('Swap Lane', this.canvas.width / 2, this.canvas.height / 2 - 50);
-    
-    this.ctx.font = '24px Arial';
-    this.ctx.fillText('Press SPACE to Start', this.canvas.width / 2, this.canvas.height / 2 + 50);
-  }
-
   drawGameOver() {
     // Semi-transparent overlay
     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     
+    // Game over text
     this.ctx.fillStyle = '#fff';
-    this.ctx.font = '48px Arial';
+    this.ctx.font = '48px sans-serif';
     this.ctx.textAlign = 'center';
-    this.ctx.fillText('Game Over', this.canvas.width / 2, this.canvas.height / 2 - 100);
+    this.ctx.fillText('Game Over', this.canvas.width / 2, this.canvas.height / 2 - 80);
     
-    this.ctx.font = '36px Arial';
+    // Score text
+    this.ctx.font = '24px sans-serif';
     this.ctx.fillText(`Score: ${this.score}`, this.canvas.width / 2, this.canvas.height / 2 - 20);
-    this.ctx.fillText(`High Score: ${this.highScore}`, this.canvas.width / 2, this.canvas.height / 2 + 30);
+    this.ctx.fillText(`High Score: ${this.highScore}`, this.canvas.width / 2, this.canvas.height / 2 + 20);
     
-    this.ctx.font = '24px Arial';
-    this.ctx.fillText('Press SPACE to Restart', this.canvas.width / 2, this.canvas.height / 2 + 100);
+    // Restart instructions
+    this.ctx.font = '20px sans-serif';
+    this.ctx.fillText('Press Space or Tap to Restart', this.canvas.width / 2, this.canvas.height / 2 + 80);
   }
 
   update() {
@@ -404,30 +397,25 @@ class Game {
 
   draw() {
     // Clear canvas
-    this.ctx.fillStyle = '#000';
+    this.ctx.fillStyle = '#333';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     
     // Draw road
     this.drawRoad();
     
+    // Draw enemy cars
+    this.enemyCarManager.draw(this.cameraY, this.cameraX);
+    
+    // Draw player car
+    this.playerCar.draw(this.cameraY, this.cameraX);
+    
     // Draw score
     this.drawScore();
-    
-    // Draw title screen if game is not started
-    if (!this.gameOver) {
-      this.drawTitleScreen();
-      return;
-    }
     
     // Draw game over screen if game is over
     if (this.gameOver) {
       this.drawGameOver();
-      return;
     }
-    
-    // Draw game elements
-    this.playerCar.draw(this.cameraY, this.cameraX);
-    this.enemyCarManager.draw(this.cameraY, this.cameraX);
   }
 
   gameLoop() {
