@@ -19,7 +19,7 @@ const AI_CAR_SPAWN_INTERVAL = 2000; // Time between AI car spawns in ms
 const MAX_WHEEL_ROTATION = 720; // Changed to 720 degrees (2 full turns)
 const MAX_TIRE_ANGLE = 90; // Unchanged
 const MAX_STEERING_ANGLE = MAX_WHEEL_ROTATION;
-const STEERING_SENSITIVITY = 1.2;
+const STEERING_SENSITIVITY = 0.8;
 
 // Game state
 let score = 0;
@@ -28,7 +28,7 @@ let roadSegments = [];
 const SEGMENT_LENGTH = 80;
 
 // Add touch tracking map and touch-specific state
-const activeTouches = new Map(); // Maps touch identifier to { control: 'steering'|'gas'|'brake', startAngle: number, startPointerAngle: number }
+const activeTouches = new Map(); // Maps touch identifier to { control: 'steering'|'gas'|'brake', startAngle: number, startPointerAngle: number, lastPointerAngle: number }
 
 // Helper to check if a touch is over an element
 function isTouchOverElement(x, y, element) {
@@ -59,22 +59,24 @@ function handleTouchStart(e) {
         const pointerAngle = window.getAngleFromCenter(clientX, clientY, rect);
         activeTouches.set(identifier, {
           control: 'steering',
-          startAngle: window.steeringAngle,
+          startAngle: window.steeringAngle || 0,
           startPointerAngle: pointerAngle,
-          lastPointerAngle: pointerAngle,
-          lastAngle: window.steeringAngle
+          lastPointerAngle: pointerAngle // Initialize last angle
         });
         window.steeringActive = true;
+        console.log(`TouchStart: ID=${identifier}, Control=steering, StartAngle=${window.steeringAngle}`);
       }
     } else if (isTouchOverElement(clientX, clientY, gasBtn)) {
       if (!activeTouches.has(identifier)) {
         activeTouches.set(identifier, { control: 'gas' });
         this.playerCar.setPedal('gas', true);
+        console.log(`TouchStart: ID=${identifier}, Control=gas`);
       }
     } else if (isTouchOverElement(clientX, clientY, brakeBtn)) {
       if (!activeTouches.has(identifier)) {
         activeTouches.set(identifier, { control: 'brake' });
         this.playerCar.setPedal('brake', true);
+        console.log(`TouchStart: ID=${identifier}, Control=brake`);
       }
     }
   }
@@ -91,27 +93,20 @@ function handleTouchMove(e) {
     if (touchData && touchData.control === 'steering' && window.steeringActive) {
       const rect = steeringWheel.getBoundingClientRect();
       const pointerAngle = window.getAngleFromCenter(clientX, clientY, rect);
-      
-      // Calculate delta from last position
       let delta = pointerAngle - touchData.lastPointerAngle;
-      
       // Normalize delta to [-180, 180]
       if (delta > 180) delta -= 360;
       if (delta < -180) delta += 360;
-      
-      // Apply sensitivity and update angle
-      const angleChange = delta * STEERING_SENSITIVITY;
-      const newAngle = Math.max(-window.MAX_STEERING_ANGLE, 
-                               Math.min(window.MAX_STEERING_ANGLE, 
-                                      touchData.lastAngle + angleChange));
-      
+      delta *= STEERING_SENSITIVITY;
+      // Smooth delta to prevent snapping
+      delta = delta * 0.7 + (touchData.lastDelta || 0) * 0.3;
+      touchData.lastDelta = delta;
+      const newAngle = Math.max(-window.MAX_STEERING_ANGLE, Math.min(window.MAX_STEERING_ANGLE, window.steeringAngle + delta));
       if (newAngle !== window.steeringAngle) {
         window.steeringAngle = newAngle;
         window.setSteeringVisual(window.steeringAngle);
-        touchData.lastAngle = newAngle;
+        console.log(`TouchMove: ID=${identifier}, Angle=${newAngle}, Delta=${delta}`);
       }
-      
-      // Update last pointer angle for next frame
       touchData.lastPointerAngle = pointerAngle;
     }
   }
@@ -125,20 +120,13 @@ function handleTouchEnd(e) {
     if (touchData) {
       if (touchData.control === 'steering') {
         activeTouches.delete(identifier);
-        // Only reset steering if no other steering touches are active
         if (!Array.from(activeTouches.values()).some(t => t.control === 'steering')) {
           window.steeringActive = false;
-          // Don't immediately return to center, let the player release naturally
           const returnToCenter = () => {
             if (!window.steeringActive) {
-              // Gradually return to center with easing
-              const targetAngle = 0;
-              const currentAngle = window.steeringAngle;
-              const diff = targetAngle - currentAngle;
-              
-              if (Math.abs(diff) > 0.1) {
-                window.steeringAngle += diff * 0.1; // Smooth easing
-                window.setSteeringVisual(window.steeringAngle);
+              window.steeringAngle *= 0.9;
+              window.setSteeringVisual(window.steeringAngle);
+              if (Math.abs(window.steeringAngle) > 0.1) {
                 requestAnimationFrame(returnToCenter);
               } else {
                 window.steeringAngle = 0;
@@ -148,12 +136,15 @@ function handleTouchEnd(e) {
           };
           returnToCenter();
         }
+        console.log(`TouchEnd: ID=${identifier}, Control=steering, ActiveTouches=${activeTouches.size}`);
       } else if (touchData.control === 'gas') {
         this.playerCar.setPedal('gas', false);
         activeTouches.delete(identifier);
+        console.log(`TouchEnd: ID=${identifier}, Control=gas`);
       } else if (touchData.control === 'brake') {
         this.playerCar.setPedal('brake', false);
         activeTouches.delete(identifier);
+        console.log(`TouchEnd: ID=${identifier}, Control=brake`);
       }
     }
   }
@@ -275,14 +266,14 @@ class Game {
     const brakeBtn = document.getElementById('brakeBtn');
     const steeringWheel = document.getElementById('steeringWheel');
 
-    // Add touch listeners
+    // Touch listeners (use dedicated touch handlers)
     steeringWheel.addEventListener('touchstart', handleTouchStart.bind(this));
     gasBtn.addEventListener('touchstart', handleTouchStart.bind(this));
     brakeBtn.addEventListener('touchstart', handleTouchStart.bind(this));
     window.addEventListener('touchmove', handleTouchMove.bind(this));
     window.addEventListener('touchend', handleTouchEnd.bind(this));
 
-    // Keep existing mouse and keyboard listeners
+    // Mouse listeners
     gasBtn.addEventListener('mousedown', () => this.playerCar.setPedal('gas', true));
     gasBtn.addEventListener('mouseup', () => this.playerCar.setPedal('gas', false));
     gasBtn.addEventListener('mouseleave', () => this.playerCar.setPedal('gas', false));
@@ -293,7 +284,7 @@ class Game {
     window.addEventListener('mousemove', window.onSteeringMove);
     window.addEventListener('mouseup', window.onSteeringEnd);
 
-    // Keyboard listeners remain unchanged
+    // Keyboard listeners
     window.addEventListener('keydown', e => {
       if (e.code === 'Space') {
         if (this.gameOver) {
