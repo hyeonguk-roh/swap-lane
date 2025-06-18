@@ -5,9 +5,9 @@ class SteeringWheel {
     this.playerCar = playerCar;
     
     // Wheel properties
-    this.centerX = canvas.width - 100;
-    this.centerY = canvas.height - 100;
-    this.radius = 50;
+    this.centerX = canvas.width / 2;
+    this.centerY = canvas.height / 2;
+    this.radius = Math.min(canvas.width, canvas.height) / 2 - 10;
     this.rotation = 0;
     this.isDragging = false;
     
@@ -20,6 +20,11 @@ class SteeringWheel {
     this.maxRotation = (720 * Math.PI) / 180; // 720 degrees in radians
     this.activeTouchId = null;
     
+    // Load steering wheel image
+    this.wheelImage = new Image();
+    this.wheelImage.src = 'assets/steering_wheel.png';
+    this.wheelImage.onload = () => this.draw();
+    
     // Event listeners
     this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
     this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
@@ -30,6 +35,9 @@ class SteeringWheel {
     this.canvas.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
     this.canvas.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
     this.canvas.addEventListener('touchcancel', this.handleTouchEnd.bind(this), { passive: false });
+    
+    // Initial draw
+    this.draw();
   }
 
   handleMouseDown(e) {
@@ -149,11 +157,8 @@ class SteeringWheel {
   }
 
   draw() {
-    // Draw wheel background
-    this.ctx.beginPath();
-    this.ctx.arc(this.centerX, this.centerY, this.radius, 0, Math.PI * 2);
-    this.ctx.fillStyle = '#333';
-    this.ctx.fill();
+    // Clear canvas
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     
     // Save context state
     this.ctx.save();
@@ -162,28 +167,16 @@ class SteeringWheel {
     this.ctx.translate(this.centerX, this.centerY);
     this.ctx.rotate(this.rotation);
     
-    // Draw wheel spokes
-    this.ctx.strokeStyle = '#666';
-    this.ctx.lineWidth = 4;
-    
-    // Draw 3 spokes
-    for (let i = 0; i < 3; i++) {
-      const angle = (Math.PI * 2 / 3) * i;
-      this.ctx.beginPath();
-      this.ctx.moveTo(0, 0);
-      this.ctx.lineTo(
-        Math.cos(angle) * this.radius,
-        Math.sin(angle) * this.radius
+    // Draw wheel image
+    if (this.wheelImage.complete) {
+      this.ctx.drawImage(
+        this.wheelImage,
+        -this.radius,
+        -this.radius,
+        this.radius * 2,
+        this.radius * 2
       );
-      this.ctx.stroke();
     }
-    
-    // Draw wheel rim
-    this.ctx.beginPath();
-    this.ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-    this.ctx.strokeStyle = '#999';
-    this.ctx.lineWidth = 6;
-    this.ctx.stroke();
     
     // Restore context state
     this.ctx.restore();
