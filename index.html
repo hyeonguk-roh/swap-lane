@@ -47,7 +47,15 @@
       top: 0; left: 0;
     }
     #steering-container { width: 100vw; max-width: 400px; display: flex; justify-content: center; margin-top: 12px; }
-    #steeringWheel { width: 180px; height: 180px; }
+    #steeringWheel {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      width: 100px;
+      height: 100px;
+      background: url('assets/steering_wheel.png') no-repeat center;
+      background-size: contain;
+    }
     #controls { display: flex; justify-content: space-between; width: 100vw; max-width: 400px; margin-top: 12px; }
     .pedal { background: #444; border: none; border-radius: 8px; color: #fff; font-size: 1.2em; padding: 12px 18px; margin: 0 8px; cursor: pointer; transition: background 0.2s; flex: 1; }
     .pedal:active { background: #666; }
@@ -133,6 +141,26 @@
     }
     #gameCanvas, #steeringWheel, #gasBtn, #brakeBtn {
       touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    #gasBtn, #brakeBtn {
+      position: absolute;
+      bottom: 20px;
+      width: 60px;
+      height: 60px;
+      background: #666;
+      color: #fff;
+      text-align: center;
+      line-height: 60px;
+      cursor: pointer;
+    }
+    #gasBtn {
+      right: 80px;
+    }
+    #brakeBtn {
+      right: 20px;
     }
   </style>
 </head>
