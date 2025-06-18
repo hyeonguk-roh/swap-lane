@@ -47,7 +47,7 @@
       top: 0; left: 0;
     }
     #steering-container { width: 100vw; max-width: 400px; display: flex; justify-content: center; margin-top: 12px; }
-    #steeringWheel { width: 28vw; max-width: 120px; height: 28vw; max-height: 120px; }
+    #steeringWheel { width: 180px; height: 180px; }
     #controls { display: flex; justify-content: space-between; width: 100vw; max-width: 400px; margin-top: 12px; }
     .pedal { background: #444; border: none; border-radius: 8px; color: #fff; font-size: 1.2em; padding: 12px 18px; margin: 0 8px; cursor: pointer; transition: background 0.2s; flex: 1; }
     .pedal:active { background: #666; }
@@ -105,13 +105,7 @@
   <h1>Swaplane</h1>
   <div class="game-flex">
     <div id="steering-container">
-      <div id="steeringWheel" style="width:120px; height:120px; border-radius:50%; background:#222; border:8px solid #888; position:relative; box-shadow:0 2px 12px #0008; display:flex; align-items:center; justify-content:center; touch-action:none; cursor:grab;">
-        <div style="width:16px; height:16px; background:#888; border-radius:50%; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);"></div>
-        <div style="position:absolute; left:50%; top:10px; width:8px; height:32px; background:#f33; border-radius:4px; transform:translateX(-50%);"></div>
-        <div style="position:absolute; left:50%; top:50%; width:6px; height:48px; background:#bbb; border-radius:3px; transform:translate(-50%,-50%) rotate(0deg);"></div>
-        <div style="position:absolute; left:50%; top:50%; width:6px; height:48px; background:#bbb; border-radius:3px; transform:translate(-50%,-50%) rotate(120deg);"></div>
-        <div style="position:absolute; left:50%; top:50%; width:6px; height:48px; background:#bbb; border-radius:3px; transform:translate(-50%,-50%) rotate(240deg);"></div>
-      </div>
+      <img id="steeringWheel" src="assets/steering_wheel.png" style="width:180px; height:180px; touch-action:none; cursor:grab;">
     </div>
     <div id="game-container">
       <div class="canvas-aspect">
@@ -126,6 +120,8 @@
   <div id="instructions">
     <p>Use the onscreen steering wheel (drag or rotate), or your keyboard's <b>W</b>/<b>S</b> for gas/brake and left/right arrows to steer, to control your car down a busy highway. Avoid other cars and see how far you can go in <b>Swaplane</b>!</p>
   </div>
-  <script src="swapline.js"></script>
+  <script src="playerCar.js"></script>
+  <script src="enemyCar.js"></script>
+  <script src="game.js"></script>
 </body>
 </html> 

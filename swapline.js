@@ -24,6 +24,7 @@ let car = {
   heading: -Math.PI / 2, // Upwards (forwards)
   steering: 0 // radians
 };
+let aiCars = []; // Array to store AI cars
 let obstacles = [];
 let score = 0;
 let gameOver = false;
@@ -62,18 +63,90 @@ function generateRoadIfNeeded() {
   }
 }
 
+// AI Car constants
+const AI_CAR_SPEED_MIN = 2;
+const AI_CAR_SPEED_MAX = 6;
+const AI_CAR_SPAWN_DISTANCE = 1000; // Distance ahead to spawn AI cars
+const AI_CAR_SPAWN_INTERVAL = 2000; // Time between AI car spawns in ms
+let lastAiCarSpawnTime = 0;
+
+function spawnAiCar() {
+  const lane = Math.floor(Math.random() * LANE_COUNT);
+  const x = ROAD_LEFT + lane * LANE_WIDTH + (LANE_WIDTH - CAR_WIDTH) / 2;
+  const y = cameraY - AI_CAR_SPAWN_DISTANCE;
+  const speed = AI_CAR_SPEED_MIN + Math.random() * (AI_CAR_SPEED_MAX - AI_CAR_SPEED_MIN);
+  
+  aiCars.push({
+    x,
+    y,
+    speed,
+    heading: -Math.PI / 2, // Same direction as player
+    steering: 0,
+    targetLane: lane,
+    laneChangeTimer: 0,
+    laneChangeDuration: 0
+  });
+}
+
+function updateAiCars() {
+  const currentTime = performance.now();
+  
+  // Spawn new AI cars
+  if (currentTime - lastAiCarSpawnTime > AI_CAR_SPAWN_INTERVAL) {
+    spawnAiCar();
+    lastAiCarSpawnTime = currentTime;
+  }
+  
+  // Update existing AI cars
+  aiCars.forEach(aiCar => {
+    // Move car forward
+    aiCar.y += aiCar.speed;
+    
+    // Random lane changes
+    if (aiCar.laneChangeTimer <= 0) {
+      // Decide if we should change lanes
+      if (Math.random() < 0.01) { // 1% chance per frame
+        const newLane = Math.floor(Math.random() * LANE_COUNT);
+        if (newLane !== aiCar.targetLane) {
+          aiCar.targetLane = newLane;
+          aiCar.laneChangeTimer = 60; // 1 second at 60fps
+          aiCar.laneChangeDuration = 60;
+        }
+      }
+    } else {
+      // Execute lane change
+      const targetX = ROAD_LEFT + aiCar.targetLane * LANE_WIDTH + (LANE_WIDTH - CAR_WIDTH) / 2;
+      const progress = 1 - (aiCar.laneChangeTimer / aiCar.laneChangeDuration);
+      aiCar.x = aiCar.x + (targetX - aiCar.x) * 0.1;
+      aiCar.laneChangeTimer--;
+    }
+  });
+  
+  // Remove AI cars that are far behind
+  aiCars = aiCars.filter(aiCar => aiCar.y > cameraY + canvas.height / 2 - 100);
+}
+
+function drawAiCars() {
+  aiCars.forEach(aiCar => {
+    let drawY = (canvas.height / 2) - (cameraY - aiCar.y);
+    drawCar(aiCar, '#f33'); // Draw AI cars in red
+  });
+}
+
 function resetGame() {
   car = {
     x: canvas.width / 2,
     y: canvas.height - 100,
-    speed: 3, // Start in motion
-    heading: -Math.PI / 2, // Upwards (forwards)
+    speed: 3,
+    heading: -Math.PI / 2,
     steering: 0
   };
+  aiCars = [];
   obstacles = [];
   score = 0;
   gameOver = false;
   lastObstacleTime = 0;
+  lastAiCarSpawnTime = 0;
   roadSegments = [];
   cameraY = car.y;
 }
@@ -165,8 +238,20 @@ function checkCollision() {
     gameOver = true;
     return;
   }
+  
+  // Check collision with AI cars
+  for (let aiCar of aiCars) {
+    const dx = aiCar.x + CAR_WIDTH / 2 - car.x;
+    const dy = aiCar.y + CAR_HEIGHT / 2 - car.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < (CAR_WIDTH + CAR_WIDTH) / 2) {
+      gameOver = true;
+      return;
+    }
+  }
+  
+  // Check collision with obstacles
   for (let obs of obstacles) {
-    // Transform obstacle to car's local space
     const dx = obs.x + OBSTACLE_WIDTH / 2 - car.x;
     const dy = obs.y + OBSTACLE_HEIGHT / 2 - car.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -264,27 +349,35 @@ function updateCar() {
 }
 
 function gameLoop(ts) {
-  // Camera follows car vertically
-  cameraY += (car.y - cameraY) * 0.15;
-  generateRoadIfNeeded();
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawRoad();
-  drawObstacles();
-  drawCar(car);
-  drawScore();
-  if (gameOver) {
+  if (!gameOver) {
+    // Camera follows car vertically
+    cameraY += (car.y - cameraY) * 0.15;
+    
+    // Update game state
+    updateCar();
+    updateObstacles();
+    updateAiCars();
+    updateScore();
+    checkCollision();
+    generateRoadIfNeeded();
+    
+    // Procedurally spawn obstacles
+    if (!lastObstacleTime || ts - lastObstacleTime > 900) {
+      spawnObstacle();
+      lastObstacleTime = ts;
+    }
+    
+    // Draw everything
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawRoad();
+    drawObstacles();
+    drawAiCars();
+    drawCar(car);
+    drawScore();
+  } else {
     drawGameOver();
-    return;
   }
-  // Procedurally spawn obstacles
-  if (!lastObstacleTime || ts - lastObstacleTime > 900) {
-    spawnObstacle();
-    lastObstacleTime = ts;
-  }
-  updateObstacles();
-  checkCollision();
-  updateScore();
-  updateCar();
+  
   requestAnimationFrame(gameLoop);
 }
 
@@ -327,5 +420,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Start game
   resetGame();
-  requestAnimationFrame(gameLoop);
+  // Ensure game loop is running
+  if (!window.gameLoopRunning) {
+    window.gameLoopRunning = true;
+    requestAnimationFrame(gameLoop);
+  }
 }); 
