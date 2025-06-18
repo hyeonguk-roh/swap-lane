@@ -37,6 +37,13 @@ function isTouchOverElement(x, y, element) {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
 
+// Helper to get angle from center
+window.getAngleFromCenter = function(x, y, rect) {
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  return Math.atan2(y - centerY, x - centerX) * (180 / Math.PI);
+};
+
 // Touch event handlers
 function handleTouchStart(e) {
   e.preventDefault();
@@ -54,7 +61,8 @@ function handleTouchStart(e) {
           control: 'steering',
           startAngle: window.steeringAngle,
           startPointerAngle: pointerAngle,
-          lastPointerAngle: pointerAngle
+          lastPointerAngle: pointerAngle,
+          lastAngle: window.steeringAngle
         });
         window.steeringActive = true;
       }
@@ -84,21 +92,23 @@ function handleTouchMove(e) {
       const rect = steeringWheel.getBoundingClientRect();
       const pointerAngle = window.getAngleFromCenter(clientX, clientY, rect);
       
-      // Calculate delta from last position instead of start position
+      // Calculate delta from last position
       let delta = pointerAngle - touchData.lastPointerAngle;
       
       // Normalize delta to [-180, 180]
       if (delta > 180) delta -= 360;
       if (delta < -180) delta += 360;
       
-      // Update the angle
+      // Apply sensitivity and update angle
+      const angleChange = delta * STEERING_SENSITIVITY;
       const newAngle = Math.max(-window.MAX_STEERING_ANGLE, 
                                Math.min(window.MAX_STEERING_ANGLE, 
-                                      window.steeringAngle + (delta * STEERING_SENSITIVITY)));
+                                      touchData.lastAngle + angleChange));
       
       if (newAngle !== window.steeringAngle) {
         window.steeringAngle = newAngle;
         window.setSteeringVisual(window.steeringAngle);
+        touchData.lastAngle = newAngle;
       }
       
       // Update last pointer angle for next frame
@@ -170,17 +180,6 @@ window.setSteeringVisual = function(angle) {
   document.getElementById('steeringWheel').style.transform = `rotate(${angle}deg)`;
 };
 
-window.getAngleFromCenter = function(x, y, rect) {
-  const cx = rect.left + rect.width / 2;
-  const cy = rect.top + rect.height / 2;
-  const dx = x - cx;
-  const dy = y - cy;
-  // Normalize angle to be between 0 and 360 degrees
-  let angle = Math.atan2(dy, dx) * 180 / Math.PI;
-  if (angle < 0) angle += 360;
-  return angle;
-};
-
 window.onSteeringStart = function(e) {
   window.steeringActive = true;
   const pointer = e.touches ? e.touches[0] : e;
@@ -203,9 +202,10 @@ window.onSteeringMove = function(e) {
   if (delta > 180) delta -= 360;
   if (delta < -180) delta += 360;
   
+  const angleChange = delta * STEERING_SENSITIVITY;
   const newAngle = Math.max(-MAX_STEERING_ANGLE, 
                            Math.min(MAX_STEERING_ANGLE, 
-                                  window.steeringAngle + (delta * STEERING_SENSITIVITY)));
+                                  window.steeringAngle + angleChange));
   
   if (newAngle !== window.steeringAngle) {
     window.steeringAngle = newAngle;
