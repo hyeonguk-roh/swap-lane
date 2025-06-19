@@ -227,26 +227,33 @@ window.onSteeringEnd = function(e) {
 class Game {
   constructor(canvas) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
+    this.ctx = canvas.getContext('2d', { alpha: false }); // Optimize canvas context
+    this.ctx.imageSmoothingEnabled = false; // Disable image smoothing for better performance
     
     // Road properties
-    this.ROAD_WIDTH = 700; // Increased to accommodate 7 lanes
+    this.ROAD_WIDTH = 700;
     this.ROAD_LEFT = (canvas.width - this.ROAD_WIDTH) / 2;
-    this.LANE_COUNT = 7; // Changed from 3 to 7
+    this.LANE_COUNT = 7;
     this.LANE_WIDTH = this.ROAD_WIDTH / this.LANE_COUNT;
     
     // Camera properties
     this.cameraY = 0;
     this.cameraX = 0;
-    this.cameraSmoothing = 0.1; // How quickly the camera follows (0-1)
+    this.cameraSmoothing = 0.1;
     
     // Game state
     this.score = 0;
     this.gameOver = false;
     this.scoreActive = true;
     this.highScore = localStorage.getItem('highScore') || 0;
-    this.passedCars = new Set(); // Track which cars have been passed
-    this.roadSegments = []; // Road segments array as instance property
+    this.passedCars = new Set();
+    this.roadSegments = [];
+    
+    // Performance optimizations
+    this.lastFrameTime = 0;
+    this.frameCount = 0;
+    this.fps = 60;
+    this.frameInterval = 1000 / this.fps;
     
     // Make canvas-dependent constants available globally
     Object.assign(window, {
@@ -561,10 +568,19 @@ class Game {
     }
   }
 
-  gameLoop() {
-    this.update();
-    this.draw();
-    requestAnimationFrame(() => this.gameLoop());
+  gameLoop(timestamp) {
+    // Throttle frame rate for better performance
+    if (!this.lastFrameTime) this.lastFrameTime = timestamp;
+    const elapsed = timestamp - this.lastFrameTime;
+    
+    if (elapsed > this.frameInterval) {
+      this.lastFrameTime = timestamp - (elapsed % this.frameInterval);
+      
+      this.update();
+      this.draw();
+    }
+    
+    requestAnimationFrame((ts) => this.gameLoop(ts));
   }
 
   start() {
